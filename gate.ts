@@ -19,11 +19,67 @@ const READ_ONLY_TOOLS = new Set([
 
 const READ_ONLY_BASH_COMMANDS = new Set([
   "ls", "pwd", "grep", "rg", "find", "cat", "head", "tail", "wc",
+  // Additional read-only inspection commands (no side effects; redirection
+  // and chaining are still blocked by UNSAFE_SHELL_TOKENS).
+  "tree", "echo", "printf", "test", "stat", "which", "file", "du", "df",
 ]);
 
 const READ_ONLY_GIT_SUBCOMMANDS = new Set([
   "status", "diff", "log", "show",
 ]);
+
+// Read-only argument shapes for git subcommands that also have destructive
+// variants (e.g. `git branch -v` read vs `git branch -D` delete). A command is
+// read-only only if EVERY flag after the subcommand is in the subcommand's
+// allow-set AND no destructive flag appears. Default-deny: unknown flag → false.
+const GIT_BRANCH_READ_FLAGS = new Set(["-v", "--verbose", "-a", "--all", "-r", "--remotes", "--list", "-l"]);
+const GIT_TAG_READ_FLAGS = new Set(["-l", "--list", "-n", "-n0", "-n1", "-n2", "-n3", "-n4", "-n5", "-n6", "-n7", "-n8", "-n9"]);
+const GIT_CONFIG_READ_FLAGS = new Set(["--get", "--get-all", "--get-regexp", "-l", "--list", "--get-urlmatch"]);
+
+/** Whether a `git <sub>` invocation is read-only, checking arguments not just
+ *  the subcommand name (so `git branch -v` is allowed but `git branch -D` is not). */
+function isReadOnlyGit(subcommand: string, words: string[]): boolean {
+  // Pure name-level read-only subcommands (status/diff/log/show).
+  if (READ_ONLY_GIT_SUBCOMMANDS.has(subcommand)) return true;
+
+  const flags = words.slice(2);
+
+  if (subcommand === "branch") {
+    // `git branch` with no args lists branches (read-only). Any arg must be a
+    // known read flag; a bare name (create) or -D/-d/-m is not allowed.
+    if (flags.length === 0) return true;
+    return flags.every((w) => GIT_BRANCH_READ_FLAGS.has(w));
+  }
+
+  if (subcommand === "remote") {
+    // `git remote` (no args) lists; `-v`/`--verbose` lists; `show <name>` reads.
+    if (flags.length === 0) return true;
+    if (flags[0] === "-v" || flags[0] === "--verbose") return flags.length === 1;
+    if (flags[0] === "show") return true; // `git remote show <name>` is read-only
+    return false;
+  }
+
+  if (subcommand === "tag") {
+    // `git tag` (no args) lists; `-l`/`--list`/`-nN` lists; a bare name creates.
+    if (flags.length === 0) return true;
+    return flags.every((w) => GIT_TAG_READ_FLAGS.has(w) || /^-n\d+$/.test(w));
+  }
+
+  if (subcommand === "config") {
+    // Only the --get* / -l / --list forms are read-only. `git config <k> <v>`
+    // writes, `--add`/`--unset` write.
+    if (flags.length === 0) return false; // `git config` with no args → not standard; deny
+    // Allow exactly one read flag optionally followed by a key (positional value).
+    const hasReadFlag = flags.some((w) => GIT_CONFIG_READ_FLAGS.has(w));
+    if (!hasReadFlag) return false;
+    // No write flags allowed.
+    const WRITE_FLAGS = new Set(["--add", "--unset", "--unset-all", "--replace-all", "--remove-section", "--rename-section"]);
+    if (flags.some((w) => WRITE_FLAGS.has(w))) return false;
+    return true;
+  }
+
+  return false;
+}
 
 const READ_ONLY_CODEGRAPH_SUBCOMMANDS = new Set([
   "status", "files", "query", "explore", "node", "callers", "callees", "impact", "affected",
@@ -46,7 +102,7 @@ function firstWords(command: string): string[] {
   return command.trim().split(/\s+/).filter(Boolean);
 }
 
-function isReadOnlyBashCommand(command: string): boolean {
+export function isReadOnlyBashCommand(command: string): boolean {
   const trimmed = command.trim();
   if (!trimmed || UNSAFE_SHELL_TOKENS.test(trimmed)) return false;
 
@@ -60,7 +116,7 @@ function isReadOnlyBashCommand(command: string): boolean {
   }
 
   if (executable === "git") {
-    return Boolean(subcommand && READ_ONLY_GIT_SUBCOMMANDS.has(subcommand));
+    return Boolean(subcommand) && isReadOnlyGit(subcommand!, words);
   }
 
   if (executable === "codegraph") {

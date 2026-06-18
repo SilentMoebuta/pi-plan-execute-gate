@@ -5,12 +5,10 @@
 ## 安装
 
 ```bash
-# 复制到项目扩展目录
-cp -r extensions/pi-plan-execute-gate .pi/extensions/
-
-# 或直接加载
-pi -e extensions/pi-plan-execute-gate/index.ts
+pi install git:github.com/SilentMoebuta/pi-plan-execute-gate
 ```
+
+> 旧的手动复制（`cp -r`）与 `pi -e` 加载方式已废弃，请使用上面的包安装。
 
 ## 工作原理
 
@@ -44,12 +42,12 @@ pi -e extensions/pi-plan-execute-gate/index.ts
 
 - 允许**只读/审批工具**：`read`、`grep`、`find`、`ls`、`web_search`、`fetch_content`、`get_search_content`、`code_search`、`ask_user`、`propose_goal_draft`、`memory_search`、`memory_recall`、`memory_status`、`get_subagent_result`
 - `subagent`：**一律放行**（所有类型）。spawn subagent 是主 agent 的显式委托，在隔离 session 中执行；Plan Mode 只约束主 agent 的*直接*写操作，不拦截委托执行。这样兼容 superpowers 的 `coder`/`debugger`/`researcher`/`reviewer` 等角色化 subagent 工作流（见 [subagent-driven-development](#与-superpowers-的集成)）
-- `bash` 仅允许保守只读命令：`ls`、`pwd`、`rg`/`grep`、`find`（禁止 `-delete/-exec`）、`cat`、`head`、`tail`、`wc`、`git status/diff/log/show`、`codegraph status/files/query/explore/node/callers/callees/impact` 等；禁止管道、重定向、命令串联
-- `write`/`edit`：**仅允许目标路径在计划目录下**（默认 `docs/plans/`），用于起草计划文档；其余写操作被拦截
+- `bash` 仅允许保守只读命令：`ls`、`pwd`、`rg`/`grep`、`find`（禁止 `-delete/-exec`）、`cat`、`head`、`tail`、`wc`、`tree`、`echo`/`printf`、`test`、`stat`、`which`、`file`、`du`、`df`、`git status/diff/log/show`、`git branch -v/-a/-r`（参数级判别，拦 `-D/-d/-m`）、`git remote -v/show`、`git tag`/`-l`、`git config --get/-l`、`codegraph status/files/query/explore/node/callers/callees/impact` 等；禁止管道、重定向、命令串联
+- `write`/`edit`：允许目标路径在 **任一工作流文档目录** 下（`docs/plans/`、`docs/research/`、`docs/reviews/`、`docs/specs/`），用于起草计划/研究/评审/规格文档；其余写操作被拦截
 - 其他写操作（危险 `bash`、`git commit`、向项目源码 `write`/`edit` 等）会被**拦截并提示原因**
 - 适用于需求分析、代码探索、设计方案阶段，同时不会阻止向用户请求审批
 
-> **为何允许向计划目录写文件？** `/execute` 需要计划目录下存在 `.md` 文件。若 Plan Mode 完全禁止写，Agent 将无法起草计划，陷入“无法写计划 → 无法切到 Build Mode”的死锁。限制写作用域到计划目录，既打破死锁又不让源码被误改。
+> **为何允许向工作流文档目录写文件？** `/execute` 需要计划目录下存在 `.md` 文件。若 Plan Mode 完全禁止写，Agent 将无法起草计划，陷入“无法写计划 → 无法切到 Build Mode”的死锁。限制写作用域到工作流文档目录（plans/research/reviews/specs），既打破死锁又不让源码被误改。
 
 ### Build Mode（构建模式）
 
