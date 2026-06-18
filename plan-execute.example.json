@@ -1,0 +1,5 @@
+{
+  "_note": "plan-execute-gate works without configuration. Copy this to .pi/plan-execute.json to customize. Only honored for trusted projects.",
+  "defaultMode": "plan",
+  "planDirectory": "docs/plans"
+}
