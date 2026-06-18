@@ -54,7 +54,7 @@ export default function (pi: ExtensionAPI) {
     // Restore persisted state from session entries; fall back to configured default.
     const entries = ctx.sessionManager.getEntries();
     const saved = entries
-      .filter((e: { customType?: string }) => e.customType === "plan-execute-mode")
+      .filter((e) => (e as { customType?: string }).customType === "plan-execute-mode")
       .pop() as { data?: { mode?: string } } | undefined;
 
     if (saved?.data?.mode === "execute" || saved?.data?.mode === "plan") {
