@@ -14,28 +14,21 @@ pi install git:github.com/SilentMoebuta/pi-plan-execute-gate
 
 扩展监听 `tool_call` 事件，根据当前模式决定是否拦截写操作工具。
 
+**默认行为：Build Mode（全工具）。** 装了本扩展不会改变 pi 的默认行为——开 session / spawn subagent 默认都是 Build Mode，用户不受任何限制。只有显式 `/plan` 才进入只读模式。
+
 ```
-启动 → Plan Mode（只读）
+启动 → Build Mode（默认，全工具）
+         │
+    /plan 命令（opt-in 只读）
+         ▼
+   Plan Mode（只读）
          │
     /execute 命令
-         │
+         ├─ 默认：无条件切回 Build Mode
+         └─ 若 .pi/plan-execute.json 设 {"requirePlanForExecute": true}：
+            需 docs/plans/ 有 .md 才切（superpowers 严格门）
          ▼
-   检查 docs/plans/ 目录
-         │
-    ┌────┴────┐
-    │ 存在 .md │ 不存在 .md
-    │ 计划文件 │ 无计划文件
-    └────┬────┘    │
-         │         ▼
-         │    ❌ 拒绝切换
-         │    "No approved plan found in the plan directory"
-         ▼
-   Build Mode（全部工具可用）
-         │
-    /plan 命令
-         │
-         ▼
-   返回 Plan Mode
+   Build Mode
 ```
 
 ### Plan Mode（规划模式）
@@ -47,12 +40,12 @@ pi install git:github.com/SilentMoebuta/pi-plan-execute-gate
 - 其他写操作（危险 `bash`、`git commit`、向项目源码 `write`/`edit` 等）会被**拦截并提示原因**
 - 适用于需求分析、代码探索、设计方案阶段，同时不会阻止向用户请求审批
 
-> **为何允许向工作流文档目录写文件？** `/execute` 需要计划目录下存在 `.md` 文件。若 Plan Mode 完全禁止写，Agent 将无法起草计划，陷入“无法写计划 → 无法切到 Build Mode”的死锁。限制写作用域到工作流文档目录（plans/research/reviews/specs），既打破死锁又不让源码被误改。
+> **为何允许向工作流文档目录写文件？** Plan Mode 下若用户想起草计划，需要能写 `.md`。限制写作用域到工作流文档目录（plans/research/reviews/specs），既让 Plan Mode 能起草计划又不让源码被误改。注：这是 Plan Mode 的限制；默认 Build Mode 下写入不受限。
 
 ### Build Mode（构建模式）
 
 - **所有工具均可用**，无限制
-- 切换到此模式前必须 `docs/plans/` 目录下存在至少一个 `.md` 计划文件
+- 切换到此模式后所有工具可用（默认）。若 `.pi/plan-execute.json` 设了 `"requirePlanForExecute": true`，则需 `docs/plans/` 下存在 `.md` 才能切换（superpowers 严格门，opt-in）
 - 适用于编码实现、测试执行、重构操作
 
 ## 命令
@@ -60,7 +53,7 @@ pi install git:github.com/SilentMoebuta/pi-plan-execute-gate
 | 命令 | 说明 |
 |------|------|
 | `/plan` | 切换到 Plan Mode（只读工具）。**随时可用**，无需条件。 |
-| `/execute` | 切换到 Build Mode（全部工具）。**需要** `docs/plans/` 下至少有一个 `.md` 文件。 |
+| `/execute` | 切换到 Build Mode（全部工具）。**默认无条件**；若设了 `requirePlanForExecute: true` 才需 `docs/plans/` 有 `.md`。 |
 
 切换后状态会持久化，重启会话自动恢复上次模式。
 
@@ -91,22 +84,32 @@ cp extensions/pi-plan-execute-gate/plan-execute.example.json .pi/plan-execute.js
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `defaultMode` | `"plan" \| "execute"` | `"plan"` | 会话启动时的默认模式（无持久化状态时生效） |
+| `defaultMode` | `"plan" \| "execute"` | `"execute"` | 会话启动时的默认模式（无持久化状态时生效）。默认 Build，不强制规划。 |
 | `planDirectory` | `string` | `"docs/plans"` | 存放计划文档的目录路径，同时是 Plan Mode 下 `write`/`edit` 的唯一允许作用域 |
+| `requirePlanForExecute` | `boolean` | `false` | `true` 时 `/execute` 需 `planDirectory` 下有 `.md`（superpowers 严格门）。默认 `false`：`/execute` 无条件切 Build，不绑定任何工作流。 |
 
-> **安全**：配置仅对**已信任项目**生效。未信任项目即使放置了 `.pi/plan-execute.json` 也会被忽略，防止恶意项目通过 `defaultMode: "execute"` 绕过门控。配置文件格式错误时回退到默认值。
+> **安全**：配置仅对**已信任项目**生效。未信任项目即使放置了 `.pi/plan-execute.json` 也会被忽略，回退到默认（Build Mode）。配置文件格式错误时回退到默认值。
 
 > 说明：早先文档曾列出 `planModeTools` 字段，但该字段从未实现（Plan Mode 工具策略由路径作用域 + 类型白名单 + bash 命令白名单共同决定，无法用单一字符串数组表达），已移除。
 
+## superpowers 工作流用户迁移
+
+本扩展曾经默认 Plan Mode 且 `/execute` 强制要求 `docs/plans/*.md`（隐式绑定 superpowers 工作流）。现已改为默认 Build、`/execute` 无条件。若你想恢复原有的 superpowers 严格门（强制先写计划再执行），在项目根创建 `.pi/plan-execute.json`：
+
+```json
+{
+  "defaultMode": "plan",
+  "requirePlanForExecute": true
+}
+```
+
+这样 session 启动即 Plan Mode，且 `/execute` 需 `docs/plans/` 下有 `.md` 才切换——与 superpowers 的 HARD-GATE 工作流一致。
+
 ## 前置条件
 
-`/execute` 命令需要计划目录（默认 `docs/plans/`）下存在至少一个 `.md` 文件。如果不存在，切换将被拒绝并提示：
+**无。** 默认 Build Mode，开箱即用，不强制任何工作流。
 
-> No approved plan found in the plan directory. Create a plan first.
-
-在 Plan Mode 下，Agent 可以直接向计划目录写 `.md` 文件来起草计划（`write`/`edit` 在该目录下被放行），写好后请用户运行 `/execute` 切换。可通过配置中的 `planDirectory` 字段自定义计划目录位置。
-
-> 注：这里只检查“是否存在 `.md` 文件”，并不做真正的“审批”校验。所谓 approved 是工作流约定（人工确认计划内容后再 `/execute`），而非扩展强制。
+仅当用户主动 `/plan` 进入只读模式后，Plan Mode 的限制（write/edit 限工作流文档目录、bash 只读白名单）才生效。若再设 `requirePlanForExecute: true`，则 `/execute` 需 `docs/plans/` 下有 `.md`（superpowers 工作流的审批门）。
 
 ## 与 Superpowers 的集成
 

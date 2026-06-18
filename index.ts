@@ -64,10 +64,16 @@ export default function (pi: ExtensionAPI) {
     }
 
     updateStatus(ctx);
-    ctx.ui.notify(
-      `pi-plan-execute-gate: ${mode === "plan" ? "Plan Mode (read-only)" : "Build Mode (full access)"}`,
-      "info",
-    );
+    // Notify only when not the default (Build). The default Build Mode is
+    // silent so the gate stays out of the way for users who never opt into
+    // Plan Mode; a persisted non-default mode (Plan, or restored Plan) is
+    // worth surfacing.
+    if (mode !== DEFAULT_CONFIG.defaultMode) {
+      ctx.ui.notify(
+        `pi-plan-execute-gate: ${mode === "plan" ? "Plan Mode (read-only)" : "Build Mode (full access)"}`,
+        "info",
+      );
+    }
   });
 
   // ── tool_call: block writes in Plan Mode ───────────────────────────────
@@ -81,7 +87,7 @@ export default function (pi: ExtensionAPI) {
       updateStatus(ctx);
       return {
         block: true,
-        reason: `Plan Mode: "${event.toolName}" is blocked. Only read/search tools, subagent delegations (any type), and direct writes under ${planDirectory}/ are allowed. Ask the user to run /execute to switch to Build Mode (requires a .md file in ${planDirectory}/).`,
+        reason: `Plan Mode: "${event.toolName}" is blocked. Only read/search tools, subagent delegations (any type), and direct writes under ${planDirectory}/ are allowed. Ask the user to run /execute to switch to Build Mode.`,
       };
     }
   });
@@ -111,9 +117,14 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("execute", {
-    description: "Switch to Build Mode (all tools, requires an approved plan in the plan directory)",
+    description: "Switch to Build Mode (all tools available)",
     handler: async (_args, ctx) => {
-      const result = switchMode(mode, "execute", hasApprovedPlan(ctx.cwd, planDirectory));
+      // /execute is unconditional by default. superpowers users can opt into
+      // the strict plan-first gate via .pi/plan-execute.json:
+      // { "requirePlanForExecute": true }
+      const requirePlan = loadConfig(ctx.cwd, isTrusted(ctx)).requirePlanForExecute === true;
+      const hasPlan = !requirePlan || hasApprovedPlan(ctx.cwd, planDirectory);
+      const result = switchMode(mode, "execute", hasPlan);
       if (result.success) {
         mode = result.newMode;
         persistState();

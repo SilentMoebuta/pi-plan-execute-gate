@@ -309,8 +309,9 @@ describe("loadConfig", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-cfg-"));
     try {
       const cfg = loadConfig(tmp, true);
-      assert.equal(cfg.defaultMode, "plan");
+      assert.equal(cfg.defaultMode, "execute");
       assert.equal(cfg.planDirectory, "docs/plans");
+      assert.equal(cfg.requirePlanForExecute, false);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -332,7 +333,7 @@ describe("loadConfig", () => {
     }
   });
 
-  it("clamps invalid defaultMode to plan", () => {
+  it("clamps invalid defaultMode to execute (the default)", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-cfg-"));
     try {
       fs.mkdirSync(path.join(tmp, ".pi"), { recursive: true });
@@ -341,6 +342,22 @@ describe("loadConfig", () => {
         JSON.stringify({ defaultMode: "bogus" }),
       );
       const cfg = loadConfig(tmp, true);
+      assert.equal(cfg.defaultMode, "execute");
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("reads requirePlanForExecute=true for superpowers-style strict gate", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-cfg-"));
+    try {
+      fs.mkdirSync(path.join(tmp, ".pi"), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmp, ".pi", "plan-execute.json"),
+        JSON.stringify({ requirePlanForExecute: true, defaultMode: "plan" }),
+      );
+      const cfg = loadConfig(tmp, true);
+      assert.equal(cfg.requirePlanForExecute, true);
       assert.equal(cfg.defaultMode, "plan");
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -353,10 +370,10 @@ describe("loadConfig", () => {
       fs.mkdirSync(path.join(tmp, ".pi"), { recursive: true });
       fs.writeFileSync(
         path.join(tmp, ".pi", "plan-execute.json"),
-        JSON.stringify({ defaultMode: "execute" }),
+        JSON.stringify({ defaultMode: "plan" }),
       );
       const cfg = loadConfig(tmp, false);
-      assert.equal(cfg.defaultMode, "plan"); // not bypassed
+      assert.equal(cfg.defaultMode, "execute"); // default Build; untrusted cannot force Plan either
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -368,7 +385,7 @@ describe("loadConfig", () => {
       fs.mkdirSync(path.join(tmp, ".pi"), { recursive: true });
       fs.writeFileSync(path.join(tmp, ".pi", "plan-execute.json"), "{ not json");
       const cfg = loadConfig(tmp, true);
-      assert.equal(cfg.defaultMode, "plan");
+      assert.equal(cfg.defaultMode, "execute");
       assert.equal(cfg.planDirectory, "docs/plans");
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });

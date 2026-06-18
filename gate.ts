@@ -91,11 +91,17 @@ export interface PlanExecuteConfig {
   defaultMode: GateMode;
   /** Plan directory, relative to cwd. */
   planDirectory: string;
+  /** When true, /execute requires at least one .md in planDirectory
+   *  (superpowers-style strict gate). Default false: /execute is
+   *  unconditional, so the gate does not impose a workflow on non-
+   *  superpowers users. */
+  requirePlanForExecute?: boolean;
 }
 
 export const DEFAULT_CONFIG: PlanExecuteConfig = {
-  defaultMode: "plan",
+  defaultMode: "execute",
   planDirectory: "docs/plans",
+  requirePlanForExecute: false,
 };
 
 function firstWords(command: string): string[] {
@@ -293,7 +299,7 @@ You are in Plan Mode. Read/search/approval tools are allowed.
 - subagent: ALL types allowed (coder/debugger/reviewer/etc.). Spawning a subagent is an explicit delegation that runs in an isolated session; Plan Mode gates only your *direct* writes, not delegated work.
 - bash: only conservative read-only commands (ls, pwd, rg/grep, find, cat, head, tail, wc, git status/diff/log/show, codegraph read subcommands). Pipes, redirection, and chaining are blocked.
 - write/edit: allowed ONLY for files under ${planDirectory}/ (to draft the plan). All other direct writes are blocked.
-Other direct write tools are blocked. You cannot run commands yourself — to switch to Build Mode, ask the user to run /execute (requires at least one .md file in ${planDirectory}/).`;
+Other direct write tools are blocked. To switch to Build Mode (all tools), ask the user to run /execute.`;
   }
 
   return `[🔧 BUILD MODE — Full Access]
@@ -344,12 +350,16 @@ export function loadConfig(cwd: string, trusted: boolean): PlanExecuteConfig {
     const raw = JSON.parse(
       fs.readFileSync(cfgPath, "utf8"),
     ) as Partial<PlanExecuteConfig> & Record<string, unknown>;
-    const defaultMode: GateMode = raw.defaultMode === "execute" ? "execute" : "plan";
+    // Default is Build Mode; only an explicit "plan" opts into Plan Mode.
+    // (Any missing/invalid value falls back to "execute" so the gate does
+    // not silently lock users into read-only.)
+    const defaultMode: GateMode = raw.defaultMode === "plan" ? "plan" : "execute";
     const planDirectory =
       typeof raw.planDirectory === "string" && raw.planDirectory.trim()
         ? raw.planDirectory.trim()
         : DEFAULT_CONFIG.planDirectory;
-    return { defaultMode, planDirectory };
+    const requirePlanForExecute = raw.requirePlanForExecute === true;
+    return { defaultMode, planDirectory, requirePlanForExecute };
   } catch {
     return { ...DEFAULT_CONFIG };
   }
