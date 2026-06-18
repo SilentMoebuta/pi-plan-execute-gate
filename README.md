@@ -1,4 +1,4 @@
-# plan-execute-gate
+# pi-plan-execute-gate
 
 双模式门控扩展 —— 在 Plan Mode（只读）与 Build Mode（全工具）之间切换，确保 Agent 先规划、后执行。
 
@@ -6,10 +6,10 @@
 
 ```bash
 # 复制到项目扩展目录
-cp -r extensions/plan-execute-gate .pi/extensions/
+cp -r extensions/pi-plan-execute-gate .pi/extensions/
 
 # 或直接加载
-pi -e extensions/plan-execute-gate/index.ts
+pi -e extensions/pi-plan-execute-gate/index.ts
 ```
 
 ## 工作原理
@@ -84,7 +84,7 @@ pi -e extensions/plan-execute-gate/index.ts
 本扩展开箱即用，无需配置文件。如需自定义，将示例配置复制到项目根目录：
 
 ```bash
-cp extensions/plan-execute-gate/plan-execute.example.json .pi/plan-execute.json
+cp extensions/pi-plan-execute-gate/plan-execute.example.json .pi/plan-execute.json
 ```
 
 然后按需修改 `.pi/plan-execute.json`。
@@ -128,10 +128,10 @@ cp extensions/plan-execute-gate/plan-execute.example.json .pi/plan-execute.json
 
 两个扩展可组合使用，形成分层防护：
 
-- **plan-execute-gate**：模式级门控，在 Plan Mode 下拦截所有写工具
+- **pi-plan-execute-gate**：模式级门控，在 Plan Mode 下拦截所有写工具
 - **hooks-system**：操作级钩子，在 Build Mode 下对具体操作做精细控制（如阻止特定命令、注入提示）
 
-组合后在 `pre_tool_use` 阶段，`plan-execute-gate` 先判断模式，未拦截的才交给 `hooks-system` 处理。
+组合后在 `pre_tool_use` 阶段，`pi-plan-execute-gate` 先判断模式，未拦截的才交给 `hooks-system` 处理。
 
 ### auto-fix-loop（自动修复循环）
 

@@ -1,5 +1,5 @@
 {
-  "name": "plan-execute-gate",
+  "name": "pi-plan-execute-gate",
   "version": "1.0.0",
   "description": "Dual-mode gating for pi agent — Plan Mode (read-only) and Build Mode (full access). Prevents premature edits during planning, with path-scoped write allowances for workflow docs and subagent-aware session handling.",
   "keywords": [

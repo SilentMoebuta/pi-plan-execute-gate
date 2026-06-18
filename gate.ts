@@ -252,7 +252,7 @@ To return to read-only planning, ask the user to run /plan.`;
  *
  * Subagents are explicit delegations by the main agent and run in isolated
  * sessions with their own agent.md tool allowlists. They always load the
- * parent's extensions, which means plan-execute-gate would otherwise start
+ * parent's extensions, which means pi-plan-execute-gate would otherwise start
  * them in Plan Mode (no persisted state → defaultMode) and silently block
  * their write/edit calls — breaking coder/debugger/researcher subagents
  * dispatched by pi-goal, dag-run, and superpowers.

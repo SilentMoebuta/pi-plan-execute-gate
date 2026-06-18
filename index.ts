@@ -65,7 +65,7 @@ export default function (pi: ExtensionAPI) {
 
     updateStatus(ctx);
     ctx.ui.notify(
-      `plan-execute-gate: ${mode === "plan" ? "Plan Mode (read-only)" : "Build Mode (full access)"}`,
+      `pi-plan-execute-gate: ${mode === "plan" ? "Plan Mode (read-only)" : "Build Mode (full access)"}`,
       "info",
     );
   });
