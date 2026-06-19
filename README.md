@@ -33,8 +33,8 @@ pi install git:github.com/SilentMoebuta/pi-plan-execute-gate
 
 ### Plan Mode（规划模式）
 
-- 允许**只读/审批工具**：`read`、`grep`、`find`、`ls`、`web_search`、`fetch_content`、`get_search_content`、`code_search`、`ask_user`、`propose_goal_draft`、`memory_search`、`memory_recall`、`memory_status`、`get_subagent_result`
-- `subagent`：**一律放行**（所有类型）。spawn subagent 是主 agent 的显式委托，在隔离 session 中执行；Plan Mode 只约束主 agent 的*直接*写操作，不拦截委托执行。这样兼容 superpowers 的 `coder`/`debugger`/`researcher`/`reviewer` 等角色化 subagent 工作流（见 [subagent-driven-development](#与-superpowers-的集成)）
+- 允许**只读/审批工具**：`read`、`grep`、`find`、`ls`、`web_search`、`fetch_content`、`get_search_content`、`code_search`、`ask_user`、`propose_goal_draft`、`memory_search`、`memory_recall`、`memory_status`
+- `spawn_role`：**一律放行**（所有角色）。pi-roles 的 `spawn_role` 是主 agent 的显式委托，在前台隔离 session 中执行并直接返回结果；Plan Mode 只约束主 agent 的*直接*写操作，不拦截委托执行。这样兼容 superpowers 的 `coder`/`debugger`/`researcher`/`reviewer` 等角色化工作流（见 [subagent-driven-development](#与-superpowers-的集成)）
 - `bash` 仅允许保守只读命令：`ls`、`pwd`、`rg`/`grep`、`find`（禁止 `-delete/-exec`）、`cat`、`head`、`tail`、`wc`、`tree`、`echo`/`printf`、`test`、`stat`、`which`、`file`、`du`、`df`、`git status/diff/log/show`、`git branch -v/-a/-r`（参数级判别，拦 `-D/-d/-m`）、`git remote -v/show`、`git tag`/`-l`、`git config --get/-l`、`codegraph status/files/query/explore/node/callers/callees/impact` 等；禁止管道、重定向、命令串联
 - `write`/`edit`：允许目标路径在 **任一工作流文档目录** 下（`docs/plans/`、`docs/research/`、`docs/reviews/`、`docs/specs/`），用于起草计划/研究/评审/规格文档；其余写操作被拦截
 - 其他写操作（危险 `bash`、`git commit`、向项目源码 `write`/`edit` 等）会被**拦截并提示原因**

@@ -5,16 +5,16 @@ export type GateMode = "plan" | "execute";
 
 /**
  * Read-only tools allowed in Plan Mode (no path/object restrictions).
- * Note: `subagent` is intentionally NOT here — it is handled separately in
+ * Note: `spawn_role` is intentionally NOT here — it is handled separately in
  * isReadOnlyToolCall as a delegated-execution tool (always allowed), not a
- * read-only tool.
+ * read-only tool. pi-roles' `spawn_role` runs in the foreground and returns
+ * its result directly, so there is no `get_subagent_result` polling tool.
  */
 const READ_ONLY_TOOLS = new Set([
   "read", "grep", "find", "ls",
   "web_search", "fetch_content", "get_search_content", "code_search",
   "ask_user", "propose_goal_draft",
   "memory_search", "memory_recall", "memory_status",
-  "get_subagent_result",
 ]);
 
 const READ_ONLY_BASH_COMMANDS = new Set([
@@ -257,14 +257,15 @@ export function isReadOnlyToolCall(
     return false;
   }
 
-  // Subagents are explicit delegations: dispatching a coder/debugger/reviewer
-  // is an intentional execution decision by the main agent, not an accidental
-  // write. Subagents run in isolated sessions, so Plan Mode (which constrains
-  // the main agent's *direct* writes) does not gate them. This keeps the gate
-  // compatible with subagent-driven workflows (superpowers' coder/debugger/
-  // parallel-agents skills) while still blocking the main agent from directly
-  // writing to the project during planning.
-  if (toolName === "subagent") {
+  // spawn_role (pi-roles) is an explicit delegation: dispatching a
+  // coder/debugger/reviewer/researcher is an intentional execution decision
+  // by the main agent, not an accidental write. spawn_role runs in an isolated
+  // session in the foreground and returns its result directly, so Plan Mode
+  // (which constrains the main agent's *direct* writes) does not gate it. This
+  // keeps the gate compatible with role-driven workflows (superpowers'
+  // coder/debugger/parallel-agents skills) while still blocking the main agent
+  // from directly writing to the project during planning.
+  if (toolName === "spawn_role") {
     return true;
   }
 
@@ -325,8 +326,8 @@ export function getModeContext(
   if (mode === "plan") {
     return `[📋 PLAN MODE — Read-Only]
 You are in Plan Mode. Read/search/approval tools are allowed.
-- Allowed: read, grep, find, ls, web_search, fetch_content, get_search_content, code_search, ask_user, propose_goal_draft, memory_search, memory_recall, memory_status, get_subagent_result.
-- subagent: ALL types allowed (coder/debugger/reviewer/etc.). Spawning a subagent is an explicit delegation that runs in an isolated session; Plan Mode gates only your *direct* writes, not delegated work.
+- Allowed: read, grep, find, ls, web_search, fetch_content, get_search_content, code_search, ask_user, propose_goal_draft, memory_search, memory_recall, memory_status.
+- spawn_role: ALL roles allowed (coder/debugger/reviewer/researcher/etc.). Spawning a role subagent is an explicit delegation that runs in an isolated session in the foreground; Plan Mode gates only your *direct* writes, not delegated work.
 - bash: only conservative read-only commands (ls, pwd, rg/grep, find, cat, head, tail, wc, git status/diff/log/show, codegraph read subcommands). Pipes, redirection, and chaining are blocked.
 - write/edit: allowed ONLY for files under ${planDirectory}/ (to draft the plan). All other direct writes are blocked.
 Other direct write tools are blocked. To switch to Build Mode (all tools), ask the user to run /execute.`;

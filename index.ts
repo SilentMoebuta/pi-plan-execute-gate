@@ -107,7 +107,7 @@ export default function (pi: ExtensionAPI) {
       updateStatus(ctx);
       return {
         block: true,
-        reason: `Plan Mode: "${event.toolName}" is blocked. Only read/search tools, subagent delegations (any type), and direct writes under ${planDirectory}/ are allowed. Ask the user to run /execute to switch to Build Mode.`,
+        reason: `Plan Mode: "${event.toolName}" is blocked. Only read/search tools, spawn_role delegations (any role), and direct writes under ${planDirectory}/ are allowed. Ask the user to run /execute to switch to Build Mode.`,
       };
     }
   });

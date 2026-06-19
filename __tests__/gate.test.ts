@@ -120,7 +120,6 @@ describe("isReadOnlyTool", () => {
       "web_search", "fetch_content", "get_search_content", "code_search",
       "ask_user", "propose_goal_draft",
       "memory_search", "memory_recall", "memory_status",
-      "get_subagent_result",
     ]) {
       assert.equal(isReadOnlyTool(name), true, name);
     }
@@ -130,7 +129,7 @@ describe("isReadOnlyTool", () => {
     assert.equal(isReadOnlyTool("write"), false);
     assert.equal(isReadOnlyTool("edit"), false);
     assert.equal(isReadOnlyTool("bash"), false);
-    assert.equal(isReadOnlyTool("subagent"), false);
+    assert.equal(isReadOnlyTool("spawn_role"), false);
   });
 
   it("returns false for unknown / empty names", () => {
@@ -233,8 +232,8 @@ describe("isReadOnlyToolCall", () => {
     assert.equal(isReadOnlyToolCall("memory_status"), true);
   });
 
-  it("allows get_subagent_result (pure read)", () => {
-    assert.equal(isReadOnlyToolCall("get_subagent_result", { agent_id: "x" }), true);
+  it("allows spawn_role delegation (foreground role subagent = authorized execution)", () => {
+    assert.equal(isReadOnlyToolCall("spawn_role", { role: "reviewer", task: "x" }), true);
   });
 
   it("allows conservative read-only bash commands needed for code exploration", () => {
@@ -283,27 +282,29 @@ describe("isReadOnlyToolCall", () => {
     assert.equal(isReadOnlyToolCall("edit", { path: "docs/plans/p.md", edits: [] }), false);
   });
 
-  // ── subagent: delegated execution is always allowed ─────────────────
-  // Rationale: spawning a subagent (coder/debugger/etc.) is an explicit,
-  // intentional delegation by the main agent, not an accidental write.
-  // Subagents run in isolated sessions. Plan Mode constrains the main
-  // agent's *direct* writes; delegated work is always authorized.
+  // ── spawn_role: delegated execution is always allowed ─────────────
+  // Rationale: spawning a role subagent (coder/debugger/reviewer/researcher)
+  // via pi-roles' `spawn_role` is an explicit, intentional delegation by the
+  // main agent, not an accidental write. spawn_role runs in an isolated
+  // session in the foreground and returns its result directly (no polling
+  // tool). Plan Mode constrains the main agent's *direct* writes; delegated
+  // work is always authorized.
 
-  it("allows all subagent types (delegation = authorized execution)", () => {
+  it("allows all spawn_role roles (delegation = authorized execution)", () => {
     for (const t of [
-      "Explore", "Plan",
-      "general-purpose", "coder", "debugger", "researcher", "reviewer",
+      "reviewer", "coder", "researcher", "debugger",
+      "general-purpose", "Explore", "Plan",
     ]) {
-      assert.equal(isReadOnlyToolCall("subagent", { subagent_type: t, prompt: "x" }), true, t);
+      assert.equal(isReadOnlyToolCall("spawn_role", { role: t, task: "x" }), true, t);
     }
   });
 
-  it("allows subagent resume (no subagent_type)", () => {
-    assert.equal(isReadOnlyToolCall("subagent", { resume: "agent-1" }), true);
+  it("allows spawn_role with only the required task arg (no role)", () => {
+    assert.equal(isReadOnlyToolCall("spawn_role", { task: "x" }), true);
   });
 
-  it("still reports subagent as non-read-only in isReadOnlyTool (delegated, not read-only)", () => {
-    assert.equal(isReadOnlyTool("subagent"), false);
+  it("still reports spawn_role as non-read-only in isReadOnlyTool (delegated, not read-only)", () => {
+    assert.equal(isReadOnlyTool("spawn_role"), false);
   });
 });
 
@@ -314,7 +315,7 @@ describe("getModeContext", () => {
   it("returns explicit Plan Mode context describing the actual policy", () => {
     const context = getModeContext("plan");
     assert.match(context, /PLAN MODE/);
-    assert.match(context, /subagent.*allowed/i);     // subagent policy mentioned
+    assert.match(context, /spawn_role.*allowed/i);   // spawn_role policy mentioned
     assert.match(context, /docs\/plans/);            // plan dir mentioned
     assert.match(context, /ask the user to run \/execute/); // agent cannot run commands itself
   });
