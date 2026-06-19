@@ -2,6 +2,20 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isReadOnlyBashCommand } from "../gate";
 
+describe("isReadOnlyBashCommand — find escapes are blocked", () => {
+  for (const arg of ["-exec", "-execdir", "-ok", "-okdir", "-fls", "-fprint", "-fprint0", "-printf", "-delete"]) {
+    it(`blocks find ${arg} (command/file write escape)`, () => {
+      assert.equal(isReadOnlyBashCommand(`find . ${arg} rm {} \\\;`), false, arg);
+      assert.equal(isReadOnlyBashCommand(`find . -name x ${arg} /tmp/out`), false, arg);
+    });
+  }
+  it("allows plain read-only find (no dangerous args)", () => {
+    assert.equal(isReadOnlyBashCommand("find . -name '*.ts'"), true);
+    assert.equal(isReadOnlyBashCommand("find . -type f -print"), true);
+    assert.equal(isReadOnlyBashCommand("find . -print0"), true);
+  });
+});
+
 describe("isReadOnlyBashCommand — non-git read-only commands", () => {
   for (const cmd of ["tree", "tree -L 2", "echo hello", "printf '%s' x", "test -f x", "stat x", "which node", "file x", "du -sh .", "df -h"]) {
     it(`allows ${cmd}`, () => {

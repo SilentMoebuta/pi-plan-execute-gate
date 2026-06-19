@@ -41,12 +41,47 @@ describe("hasApprovedPlan", () => {
     }
   });
 
-  it("returns true when docs/plans/ has at least one .md file", () => {
+  it("returns true when docs/plans/ has a .md file whose content mentions a plan", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-test-"));
     try {
       fs.mkdirSync(path.join(tmp, "docs", "plans"), { recursive: true });
-      fs.writeFileSync(path.join(tmp, "docs", "plans", "design.md"), "# plan");
+      fs.writeFileSync(path.join(tmp, "docs", "plans", "design.md"), "# Foo Implementation Plan\nbody");
       assert.equal(hasApprovedPlan(tmp), true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("returns true when docs/plans/ has a .md file whose name contains plan", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-test-"));
+    try {
+      fs.mkdirSync(path.join(tmp, "docs", "plans"), { recursive: true });
+      fs.writeFileSync(path.join(tmp, "docs", "plans", "my-plan.md"), "x");
+      assert.equal(hasApprovedPlan(tmp), true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("returns true when docs/plans/ has a .md file with YAML frontmatter", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-test-"));
+    try {
+      fs.mkdirSync(path.join(tmp, "docs", "plans"), { recursive: true });
+      fs.writeFileSync(path.join(tmp, "docs", "plans", "spec.md"), "---\nstatus: draft\n---\n# Spec\nno plan word here");
+      assert.equal(hasApprovedPlan(tmp), true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("returns false for a stale README.md / empty scratch.md (no plan signal)", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-test-"));
+    try {
+      fs.mkdirSync(path.join(tmp, "docs", "plans"), { recursive: true });
+      fs.writeFileSync(path.join(tmp, "docs", "plans", "README.md"), "# Project\nA readme.");
+      assert.equal(hasApprovedPlan(tmp), false);
+      fs.writeFileSync(path.join(tmp, "docs", "plans", "scratch.md"), "");
+      assert.equal(hasApprovedPlan(tmp), false);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -66,7 +101,7 @@ describe("hasApprovedPlan", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "gate-test-"));
     try {
       fs.mkdirSync(path.join(tmp, "specs", "plans"), { recursive: true });
-      fs.writeFileSync(path.join(tmp, "specs", "plans", "p.md"), "# p");
+      fs.writeFileSync(path.join(tmp, "specs", "plans", "plan.md"), "# plan");
       assert.equal(hasApprovedPlan(tmp, "specs/plans"), true);
       assert.equal(hasApprovedPlan(tmp, "docs/plans"), false);
     } finally {
@@ -444,17 +479,17 @@ describe("isSubagentSession", () => {
     assert.equal(isSubagentSession(ctx2), false);
   });
 
-  it("falls back to true (permissive Build Mode) when header is null", () => {
+  it("falls back to false (normal restore path, do NOT force Build) when header is null", () => {
     const ctx = { sessionManager: { getHeader: () => null } };
-    assert.equal(isSubagentSession(ctx), true);
+    assert.equal(isSubagentSession(ctx), false);
   });
 
-  it("falls back to true when getHeader throws or is missing", () => {
+  it("falls back to false when getHeader throws or is missing", () => {
     const ctx = { sessionManager: { getHeader: () => { throw new Error("boom"); } } };
-    assert.equal(isSubagentSession(ctx), true);
+    assert.equal(isSubagentSession(ctx), false);
     const ctx2 = { sessionManager: null };
-    assert.equal(isSubagentSession(ctx2), true);
+    assert.equal(isSubagentSession(ctx2), false);
     const ctx3 = {};
-    assert.equal(isSubagentSession(ctx3 as any), true);
+    assert.equal(isSubagentSession(ctx3 as any), false);
   });
 });

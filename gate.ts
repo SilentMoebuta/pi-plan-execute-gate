@@ -85,6 +85,16 @@ const READ_ONLY_CODEGRAPH_SUBCOMMANDS = new Set([
   "status", "files", "query", "explore", "node", "callers", "callees", "impact", "affected",
 ]);
 
+/** `find` arguments that execute commands or write files — must never pass
+ *  the read-only check. `-exec`/`-execdir`/`-ok`/`-okdir` run arbitrary
+ *  commands; `-fls`/`-fprint`/`-fprint0`/`-printf` write to arbitrary files
+ *  (-printf to stdout but is paired with -fprint family in abuse);
+ *  `-delete` mutates the filesystem. */
+const UNSAFE_FIND_ARGS = new Set([
+  "-exec", "-execdir", "-ok", "-okdir",
+  "-fls", "-fprint", "-fprint0", "-printf", "-delete",
+]);
+
 const UNSAFE_SHELL_TOKENS = /(;|&&|\|\||\||>|<|`|\$\(|\n)/;
 
 export interface PlanExecuteConfig {
@@ -117,7 +127,7 @@ export function isReadOnlyBashCommand(command: string): boolean {
   const subcommand = words[1];
 
   if (READ_ONLY_BASH_COMMANDS.has(executable)) {
-    if (executable === "find" && words.some((w) => w === "-delete" || w === "-exec")) return false;
+    if (executable === "find" && words.some((w) => UNSAFE_FIND_ARGS.has(w))) return false;
     return true;
   }
 
@@ -175,7 +185,27 @@ export function isWorkflowDocPath(filePath: string, cwd: string): boolean {
 }
 
 /**
- * Check whether the plan directory contains at least one .md file.
+ * Whether a single .md file looks like a real plan artifact rather than a
+ * stale README/scratch file. A file counts if its name contains "plan"
+ * (e.g. `my-plan.md`, `plan-2026-...md`), OR its content begins with YAML
+ * frontmatter, OR its content contains the word "plan" (covers superpowers'
+ * `# <Feature> Implementation Plan` header). Reads at most the first 2 KiB.
+ */
+function isPlanArtifact(file: string, plansDir: string): boolean {
+  if (/plan/i.test(file)) return true;
+  try {
+    const content = fs.readFileSync(path.join(plansDir, file), "utf8").slice(0, 2048);
+    return /^---\s*\n/.test(content) || /\bplan\b/i.test(content);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check whether the plan directory contains at least one recognizable plan
+ * artifact (a .md file whose name or content looks like a plan, or which has
+ * frontmatter). A bare README.md or empty scratch.md no longer satisfies the
+ * /execute gate.
  */
 export function hasApprovedPlan(
   cwd: string,
@@ -184,7 +214,7 @@ export function hasApprovedPlan(
   const plansDir = path.join(cwd, planDirectory);
   if (!fs.existsSync(plansDir)) return false;
   try {
-    return fs.readdirSync(plansDir).some((f) => f.endsWith(".md"));
+    return fs.readdirSync(plansDir).some((f) => f.endsWith(".md") && isPlanArtifact(f, plansDir));
   } catch {
     return false;
   }
@@ -327,12 +357,16 @@ To return to read-only planning, ask the user to run /plan.`;
 export function isSubagentSession(ctx: {
   sessionManager: { getHeader?: () => { parentSession?: string } | null } | null;
 }): boolean {
+  // Only force Build Mode when a parentSession is POSITIVELY present. On a
+  // missing/throwing header we must NOT assume subagent — otherwise a top-level
+  // session in RPC/print mode (no getHeader) is misclassified as a subagent
+  // and forced to Build, silently bypassing a configured `defaultMode: "plan"`.
   try {
     const header = ctx.sessionManager?.getHeader?.();
-    if (!header) return true; // be permissive: no header → assume subagent → Build Mode
+    if (!header) return false;
     return Boolean(header.parentSession);
   } catch {
-    return true; // permissive on any error
+    return false;
   }
 }
 
